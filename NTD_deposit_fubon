@@ -1,0 +1,171 @@
+from PIL import Image
+import ddddocr
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.alert import Alert
+from selenium.common.exceptions import NoSuchElementException, NoAlertPresentException, ElementNotInteractableException
+import time
+import undetected_chromedriver as uc
+if __name__ == "__main__":
+    #  Chrome視窗基礎偏好設定
+    options = uc.ChromeOptions()
+    options.headless = True  # 啟用無頭模式(不將Chrome視窗顯示出來)
+    prefs = {
+        "profile.default_content_settings.popups": 0,  # 禁止彈窗
+        "download.default_directory": r"C:\Users\謝瑋益\Desktop\家計\02 銀行帳戶明細\04 台北富邦_台幣帳戶明細",  # 更改預設下載資料夾位置
+        "safebrowsing.enabled": False,  # 取消安全下載
+        # 取消密碼保存提示選項
+        "credentials_enable_service": False,
+        "profile.password_manager_enabled": False
+    }
+    options.add_experimental_option("prefs", prefs)
+    driver = uc.Chrome(options=options)
+    #  進入網頁並最大化視窗
+    driver.get("https://ebank.taipeifubon.com.tw")
+    driver.maximize_window()
+    print("進入台北富邦網路銀行")
+    print("準備進行台幣帳戶明細下載")
+    time.sleep(1)
+    #  點擊進入登入視窗
+    driver.switch_to.frame("frame1")
+    driver.find_element(By.NAME, "header_form:header_login").click()
+    time.sleep(2)
+
+    # 取得驗證碼程序
+    def getverification():
+        res = None
+        while True:
+            if len(str(res)) != 6 or res.isdigit() is False:
+                # 重新產生驗證碼
+                driver.switch_to.default_content()
+                driver.switch_to.frame("frame1")
+                driver.switch_to.frame("txnFrame")
+                driver.find_element(By.XPATH, '/html/body/div[3]/div/div/div[2]/div[1]/table/tbody/tr[4]/td[2]/a').click()
+                time.sleep(1)
+                # 螢幕截圖
+                driver.save_screenshot("prtscr_f.png")
+                time.sleep(1)
+                # 定位驗證碼
+                imgelement = driver.find_element(By.XPATH, "/html/body/div[3]/div/div/div[2]/div[1]/table/tbody/tr[4]/td[2]/span/img")
+                # 獲取驗證碼x,y軸座標
+                location = imgelement.location
+                # 獲取驗證碼的長寬
+                size = imgelement.size
+                print("驗證碼圖片位置:", location, ";驗證碼圖片尺寸:", size)
+                # 寫成我們需要擷取的位置座標
+                # 網頁顯示比例與截圖下來的比例不同，左右乘2.5倍，上下乘3.42倍(只截網頁非桌面螢幕，所以長寬比例倍數不同)
+                # 用小畫家查比較快
+                rangle = (int(location['x'] * 2.5),
+                          int(location['y'] * 3.42),
+                          int((location['x'] + size['width']) * 2.5),
+                          int((location['y'] + size['height']) * 3.42))
+                print("截圖區域:", rangle)
+                # 開啟截圖
+                i = Image.open("prtscr_f.png")
+                # 使用Image的crop函數，從截圖中再次擷取我們需要的區域
+                fimg = i.crop(rangle)
+                fimg = fimg.convert('RGB')
+                # 儲存我們截下來的驗證碼圖片，並讀取驗證碼內容
+                fimg.save("code_f.png")
+                ocr = ddddocr.DdddOcr()
+                with open("code_f.png", "rb") as f:
+                    img_bytes = f.read()
+                    time.sleep(1)
+                res = ocr.classification(img_bytes)
+                time.sleep(1)
+                print("識別出的驗證碼為：" + res)
+            else:
+                break
+        driver.find_element(By.CLASS_NAME, "input_txt.userCaptcha").send_keys(res)
+        time.sleep(1)
+
+    # 登入
+    getverification()
+    driver.find_element(By.CLASS_NAME, "input_txt").send_keys("__ID__")  # 自行變更身分證字號
+    time.sleep(1)
+    driver.find_element(By.CLASS_NAME, "input_txt.eye-padding.large").send_keys("__UserName__")  # 自行變更帳號
+    time.sleep(1)
+    driver.find_element(By.CLASS_NAME, "m1_password.input_txt.eye-padding.large").send_keys("__Password__")  # 自行變更密碼
+    time.sleep(1)
+    driver.find_element(By.ID, "btnLogin2").click()
+    print("登入")
+    time.sleep(3)
+
+
+    #  登入後若有警告視窗，自動點選通過
+    try:
+        alert = Alert(driver)
+        alert.accept()  # 確認登入
+        print("有警告視窗，點擊確認")
+        time.sleep(1)
+    except NoAlertPresentException:
+        pass
+        print("沒有警告視窗，PASS")
+        time.sleep(1)
+
+
+    #  登入後若有廣告彈窗，先關掉，若沒有則PASS
+    # ad_popup = driver.find_element(By.ID, "_global_div_popup")  # 廣告彈窗的ID
+    driver.switch_to.default_content()
+    driver.switch_to.frame("frame1")
+    time.sleep(1)
+    try:
+        driver.find_element(By.CLASS_NAME, "delete").click()
+        print("有廣告彈窗，關掉")
+    except NoSuchElementException:
+        pass
+        print("沒有廣告彈窗，PASS")
+    except ElementNotInteractableException:
+        pass
+        print("沒有廣告彈窗，PASS")
+    except Exception as e:
+        pass
+        print(f"發生未預期的錯誤: {str(e)}")
+
+
+    #  登入後第一頁，點進「我的存款」
+    #  要重新從frame、iframe往下找到element
+    driver.switch_to.default_content()
+    driver.switch_to.frame("frame1")
+    driver.switch_to.frame("txnFrame")
+    driver.find_element(By.ID, "CDS01_Btn_Icon").click()
+    driver.switch_to.default_content()
+    print("點進我的存款")
+    time.sleep(2)
+    #  進入我的存款，點進「交易明細查詢」
+    driver.switch_to.frame("frame1")
+    driver.switch_to.frame("txnFrame")
+    driver.find_element(By.XPATH, "/html/body/form/div[1]/div[2]/div/div[3]/table[2]/tbody/tr[2]/td[10]/a").click()
+    time.sleep(1)
+    driver.find_element(By.ID, "form1:id_b6644dc16a3988f35ebefc94f2a85c290d274f941553d20bacd4b39bb3cdbe27b5aab9a1b6a9e4cbb5bcd31bfc70b021").click()
+    driver.switch_to.default_content()
+    print("點進交易明細查詢")
+    time.sleep(2)
+    #  進入「臺外幣交易明細查詢」，點選6個月內，點查詢
+    driver.switch_to.frame("frame1")
+    driver.switch_to.frame("txnFrame")
+    driver.find_element(By.ID, "form1:rdoDay180").click()
+    print("選擇六個月內")
+    time.sleep(1)
+    driver.find_element(By.ID, "form1:doValidateAndSubmit").click()
+    print("點擊查詢")
+    time.sleep(1)
+    driver.find_element(By.ID, "multipleDownload").click()
+    print("點擊下載圖式")
+    time.sleep(1)
+    driver.find_element(By.CLASS_NAME, "link_excel").click()
+    print("點擊EXCEL選項")
+    time.sleep(1)
+    driver.find_element(By.CLASS_NAME, "confirm").click()
+    driver.switch_to.default_content()
+    print("點擊確認")
+    time.sleep(5)
+    #  下載完成後要登出
+    driver.switch_to.frame("frame1")
+    driver.find_element(By.ID, "header_form:header_logout").click()
+    driver.find_element(By.XPATH, '//*[@id="logout_confirm"]/div/div[2]/div/div/div/div/a[2]').click()
+    print("完成登出")
+    driver.switch_to.default_content()
+    time.sleep(5)
+    #  登出後關閉視窗
+    driver.close()
+    print("關閉視窗")
