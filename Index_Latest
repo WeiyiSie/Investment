@@ -1,0 +1,37 @@
+import os
+import requests
+
+dn = r"C:\Users\謝瑋益\Desktop\家計\03 投資對帳單\09 雅虎財經_指數最新資訊"  # 儲存位置自行更新
+if not os.path.exists(dn):
+    os.makedirs(dn)
+
+url = "https://query1.finance.yahoo.com/v6/finance/portfolio/download?userId=ABTQ64ZS6M33PY455FXQ2OYLAI&pfId=p_2"
+
+payload = {"userId": "_自行更新_",  # 自行更新
+           "pfId": "_自行更新_"}  # 自行更新
+headers = {
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Accept-Language": "zh-TW,zh;q=0.9,en-US;"
+                       "q=0.8,en;"
+                       "q=0.7,ja;"
+                       "q=0.6,zh-CN;"
+                       "q=0.5",
+    "Cookie": "_自行更新_",  # 自行更新
+    "Sec-Ch-Ua": "\"Not.A/Brand\";v=\"8\", \"Chromium\";v=\"114\", \"Google Chrome\";v=\"114\"",
+    "Sec-Ch-Ua-Mobile": "?0",
+    "Sec-Ch-Ua-Platform": "\"Windows\"",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "\"?1\"",
+    "Upgrade-Insecure-Requests": "1",
+    "User-Agent": "_自行更新_"  # 自行更新
+}
+
+download_url = requests.get(url, headers=headers, params=payload)  # header,payload加好加滿(其實有些不需要)
+print(download_url)  # 確定一下是否成功(網頁代碼200是成功)
+
+f = open(dn + "/latest_index.csv", "wb")
+f.write(download_url.content)
+f.close()
