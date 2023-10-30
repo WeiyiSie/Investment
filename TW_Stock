@@ -1,0 +1,42 @@
+import os
+from urllib.request import urlretrieve
+from datetime import datetime
+
+dn = r"C:\Users\謝瑋益\Desktop\家計\03 投資對帳單\10 點精靈_台股持股歷史股價\01_RawData_台股持股歷史股價_持有區間_新"  # 自行更新儲存位置
+if not os.path.exists(dn):
+    os.makedirs(dn)
+
+stocks = ["00882.TW",
+          "00885.TW",
+          "1303.TW",
+          "2308.TW",
+          "2317.TW",
+          "2330.TW",
+          "2881.TW",
+          "2882.TW",
+          "2891.TW",
+          "3711.TW",
+          "3714.TW",
+          ]
+start_date = datetime(2023, 6, 7, 0, 0, 0,)
+start_date_ts = round(start_date.timestamp())
+print(start_date, start_date_ts)
+end_date = datetime(datetime.now().year,
+                    datetime.now().month,
+                    datetime.now().day + 1,
+                    0, 0, 0)
+end_date_ts = round(end_date.timestamp())
+print(end_date, end_date_ts)
+
+for stock in stocks:
+    url = "https://query1.finance.yahoo.com/v7/finance/download/" \
+          + stock \
+          + "?period1=" \
+          + str(start_date_ts) \
+          + "&period2=" \
+          + str(end_date_ts) \
+          + "&interval=1d&filter=history&frequency=1d&includeAdjustedClose=true"
+    print(stock)
+    print(url)
+    fp = dn + "/" + stock + ".csv"
+    response = urlretrieve(url, fp)
