@@ -1,0 +1,152 @@
+from PIL import Image
+import ddddocr
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.alert import Alert
+from selenium.common.exceptions import NoSuchElementException, ElementNotInteractableException
+import time
+import undetected_chromedriver as uc
+#  import warnings
+#  warnings.filterwarnings("ignore", category=ResourceWarning)
+
+
+if __name__ == "__main__":
+    #  Chrome視窗基礎偏好設定
+    options = uc.ChromeOptions()
+    options.headless = True  # 啟用無頭模式(不將Chrome視窗顯示出來)
+    prefs = {
+        "profile.default_content_settings.popups": 0,  # 禁止彈窗
+        "download.default_directory": r"C:\Users\謝瑋益\Desktop\家計\02 銀行帳戶明細\03 土地銀行_台幣帳戶明細",  #  將下載資料夾改為指定位置
+        "safebrowsing.enabled": False,  # 取消安全下載
+        # 取消密碼保存提示選項
+        "credentials_enable_service": False,
+        "profile.password_manager_enabled": False
+    }
+    options.add_experimental_option("prefs", prefs)
+    #  進入網頁並最大化視窗
+    driver = uc.Chrome(options=options)
+    driver.get("https://mybank.landbank.com.tw/DesktopDefault.htm")
+    driver.maximize_window()
+    print("進入土地銀行網銀")
+    print("準備進行台幣帳戶明細下載")
+    time.sleep(1)
+
+    # 取得驗證碼程序
+    def getverification():
+        res = 0  # 驗證碼尚未辨認前，預設為0
+        while True:
+            # 如果辨認出的驗證碼小於4個字，或不是數字，就重新產出驗證碼重新辨認一次
+            if len(str(res)) != 4 or res.isdigit() is False:
+                # 先切換到指定iframe找到重新產生驗證碼的element
+                driver.switch_to.default_content()
+                iframe_element = driver.find_element(By.XPATH, '//iframe[@src="/Account/Login"]')
+                driver.switch_to.frame(iframe_element)
+                # 重新產生驗證碼
+                driver.find_element(By.XPATH, '/html/body/div/section[2]/div[2]/div/div/div/div[2]/div/form/div[1]/div[4]/div[2]/div[1]/div[1]/a').click()
+                time.sleep(2)
+                # 螢幕截圖
+                driver.save_screenshot("prtscr_l.png")
+                # 定位驗證碼
+                imgelement = driver.find_element(By.ID, "_verification_img")
+                # 獲取驗證碼x,y軸座標
+                location = imgelement.location
+                # 獲取驗證碼的長寬
+                size = imgelement.size
+                print("驗證碼圖片位置:", location, ";驗證碼圖片尺寸:", size)
+                # 寫成我們需要擷取的位置座標
+                # 網頁顯示比例與截圖下來的比例不同(只截網頁非桌面螢幕，所以長寬比例倍數不同)
+                # 用小畫家查比較快
+                rangle = (int(location['x'] * 2.5),
+                          int(location['y'] * 2.5),
+                          int((location['x'] + size['width']) * 2.5),
+                          int((location['y'] + size['height']) * 2.5))
+                print("截圖區域:", rangle)
+                # 開啟截圖
+                i = Image.open("prtscr_l.png")
+                # 使用Image的crop函數，從截圖中再次擷取我們需要的區域
+                fimg = i.crop(rangle)
+                fimg = fimg.convert('RGB')
+                # 儲存我們截下來的驗證碼圖片，並讀取驗證碼內容
+                fimg.save("code_l.png")
+                ocr = ddddocr.DdddOcr()
+                with open("code_l.png", "rb") as f:
+                    img_bytes = f.read()
+                    time.sleep(1)
+                res = ocr.classification(img_bytes)
+                print("識別出的驗證碼為：" + res)
+            else:
+                break
+        # 輸入驗證碼
+        driver.find_element(By.ID, "VerificationCode").send_keys(res)
+        time.sleep(1)
+
+    # 登入
+    getverification()
+    driver.find_element(By.ID, "hidNationalID").send_keys("__ID__")  # 自行變更身份證字號
+    time.sleep(1)
+    driver.find_element(By.ID, "UserName").send_keys("__UserName__")  # 自行變更帳號
+    time.sleep(1)
+    driver.find_element(By.ID, "Password").send_keys("__Password__")  # 自行變更密碼
+    time.sleep(1)
+    driver.find_element(By.ID, "btnLogin").click()
+    print("登入")
+    time.sleep(5)
+
+
+    #  確認是否重複登入，若有先關掉，若沒有則PASS
+    # driver.switch_to.default_content()
+    # driver.switch_to.frame("frame1")
+    time.sleep(1)
+    try:
+        driver.find_element(By.ID, "btnPopAdd").click()
+        print("有重複登入警告彈窗，確認登入")
+    except NoSuchElementException:
+        pass
+        print("沒有重複登入警告彈窗，PASS")
+    except ElementNotInteractableException:
+        pass
+        print("沒有重複登入警告彈窗，PASS")
+    except Exception as e:
+        pass
+        print(f"發生未預期的錯誤: {str(e)}")
+
+
+    #  登入後第一頁，點進「台幣交易明細查詢」
+    #  要從frame往下找到element
+    driver.switch_to.default_content()
+    iframe_element = driver.find_element(By.XPATH, '//iframe[@src="/Account/Login"]')
+    driver.switch_to.frame(iframe_element)
+    driver.find_element(By.XPATH, '//*[@id="SETS_accv_01Controller"]/div/div/ul/li[3]/div/a[1]').click()
+    print("點進台幣交易明細查詢")
+    time.sleep(1)
+    #  選擇「最近3個月」
+    driver.find_element(By.XPATH, '/html/body/div[1]/section/div/div/div[2]/div[2]/form/div[1]/div[2]/div[3]/div[2]/div[2]/div/div[4]/span').click()
+    time.sleep(1)
+    print("選擇3個月內")
+    time.sleep(1)
+    driver.find_element(By.ID, "btnQuery").click()
+    print("點擊開始查詢")
+    time.sleep(2)
+    driver.find_element(By.CLASS_NAME, "js-fancybox").click()
+    print("點擊明細存檔")
+    time.sleep(1)
+    driver.find_element(By.XPATH, '/html/body/div[3]/div/div/div/div/div/div[2]/div/div[1]/div[2]/div/div[2]/div/span').click()
+    print("選擇.csv檔")
+    driver.find_element(By.ID, "btnPopAdd").click()
+    print("點擊確定存檔")
+    time.sleep(1)
+    driver.find_element(By.XPATH, '/html/body/div[3]/div/div/div/div/div/div[2]/div/div[2]/div[1]').click()
+    print("關掉彈窗")
+
+    #  下載完成後要登出
+    logout_button = driver.find_element(By.XPATH, '/html/body/div[1]/header/div/div[2]/div[1]/a').click()
+    print("點下登出按鈕")
+    time.sleep(1)
+    #  點選登出後有一個alert視窗要點掉
+    Alert(driver).accept()
+    driver.switch_to.default_content()
+    print("完成登出")
+    time.sleep(2)
+
+    #  登出後關閉視窗
+    driver.close()
+    print("關閉視窗")
