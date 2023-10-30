@@ -1,0 +1,125 @@
+from PIL import Image
+import ddddocr
+from selenium.webdriver.common.by import By
+import time
+import undetected_chromedriver as uc
+
+if __name__ == "__main__":
+    #  Chrome視窗基礎偏好設定
+    options = uc.ChromeOptions()
+    options.headless = True  # 啟用無頭模式(不將Chrome視窗顯示出來)
+    prefs = {
+        "profile.default_content_settings.popups": 0,  # 禁止彈窗
+        "download.default_directory": r"C:\Users\謝瑋益\Desktop\家計\03 投資對帳單\01 元大銀行_證券存簿明細\New_RawData",
+        # 將下載資料夾改為指定位置
+        "safebrowsing.enabled": False,  # 取消安全下載
+        # 取消密碼保存提示選項
+        "credentials_enable_service": False,
+        "profile.password_manager_enabled": False
+    }
+    options.add_experimental_option("prefs", prefs)
+    #  進入網頁並最大化視窗
+    driver = uc.Chrome(options=options)
+    driver.get("https://ebank.yuantabank.com.tw/ib/ibanc.jsp")
+    driver.maximize_window()
+    print("進入元大銀行網銀")
+    print("準備進行台幣帳戶明細下載")
+
+    # 取得驗證碼程序
+    def getverification():
+        res = None
+        while True:
+            if len(str(res)) != 6 or res.isdigit() is False:
+                # 重新產生驗證碼
+                driver.switch_to.default_content()
+                driver.switch_to.frame("main")
+                driver.find_element(By.XPATH, '/html/body/div[1]/form/table/tbody/tr[2]/td/table/tbody/tr/td[1]/table/tbody/tr[2]/td/table/tbody/tr[2]/td/table/tbody/tr[1]/td/table/tbody/tr[8]/td/a/img').click()
+                time.sleep(2)
+                # 螢幕截圖
+                driver.save_screenshot("prtscr_y.png")
+                time.sleep(1)
+                # 定位驗證碼
+                imgelement = driver.find_element(By.ID, "spCheckCode")
+                # 獲取驗證碼x,y軸座標
+                location = imgelement.location
+                # 獲取驗證碼的長寬
+                size = imgelement.size
+                print("驗證碼圖片位置:", location, ";驗證碼圖片尺寸:", size)
+                # 寫成我們需要擷取的位置座標
+                # 網頁顯示比例與截圖下來的比例不同(只截網頁非桌面螢幕，所以長寬比例倍數不同)
+                # 用小畫家查比較快
+                rangle = (int(location['x'] * 2.52),
+                          int(location['y'] * 2.29),
+                          int((location['x'] + size['width']) * 2.49),
+                          int((location['y'] + size['height']) * 2.49))
+                print("截圖區域:", rangle)
+                # 開啟截圖
+                i = Image.open("prtscr_y.png")
+                # 使用Image的crop函數，從截圖中再次擷取我們需要的區域
+                fimg = i.crop(rangle)
+                fimg = fimg.convert('RGB')
+                # 儲存我們截下來的驗證碼圖片，並讀取驗證碼內容
+                fimg.save("code_y.png")
+                ocr = ddddocr.DdddOcr()
+                with open("code_y.png", "rb") as f:
+                    img_bytes = f.read()
+                    time.sleep(1)
+                res = ocr.classification(img_bytes)
+                print("識別出的驗證碼為：" + res)
+                time.sleep(1)
+            else:
+                break
+        driver.find_element(By.XPATH, '//*[@id="gcodeP"]').send_keys(res)
+        time.sleep(1)
+
+    # 登入
+    getverification()
+    driver.find_element(By.ID, "custidMask").send_keys("_ID_")  # 自行變更身分字號
+    time.sleep(1)
+    driver.find_element(By.ID, "plaincustno").send_keys("__UserName__")  # 自行變更帳號
+    time.sleep(1)
+    driver.find_element(By.ID, "custcode").send_keys("__Password__")  # 自行變更密碼
+    time.sleep(1)
+    driver.find_element(By.ID, "Image6").click()
+    print("登入")
+    time.sleep(3)
+
+    #  登入後第一頁，進入「+」子選單，點進「交易明細查詢」
+    #  要從frame往下找到element
+    driver.switch_to.default_content()
+    driver.switch_to.frame("fmenu")
+    driver.find_element(By.XPATH, '/html/body/table/tbody/tr[1]/td/table/tbody/tr[2]/td/table/tbody/tr/td[2]/a/img').click()
+    print("點進台幣頁籤")
+    time.sleep(1)
+    #  進入台幣頁籤子選單，點進「交易明細查詢」
+    driver.switch_to.default_content()
+    driver.switch_to.frame("fmain")
+    driver.switch_to.frame("fmenu2")
+    driver.find_element(By.XPATH, '/html/body/table/tbody/tr/td/table/tbody/tr/td[2]/table/tbody/tr[2]/td/table/tbody/tr[2]/td[2]/a').click()
+    time.sleep(1)
+    print("點進交易明細查詢")
+    #  進入「證券帳戶的交易明細查詢」，點選3個月內，點查詢
+    driver.switch_to.default_content()
+    driver.switch_to.frame("fmain")
+    driver.find_element(By.XPATH, '/html/body/form[1]/table/tbody/tr[1]/td/table/tbody/tr/td/table/tbody/tr/td/table/tbody/tr/td[2]/table/tbody/tr[3]/td/table/tbody/tr[2]/td[2]/input[6]').click()
+    time.sleep(1)
+    print("選擇3個月內")
+    driver.find_element(By.XPATH, '//*[@id="button"]').click()
+    time.sleep(1)
+    print("點擊查詢")
+    time.sleep(1)
+    driver.find_element(By.XPATH, '/html/body/form[1]/table/tbody/tr[1]/td/table/tbody/tr/td/table/tbody/tr/td/table/tbody/tr/td[2]/table/tbody/tr[7]/td/table/tbody/tr/td[2]/input[2]').click()
+    driver.switch_to.default_content()
+    print("點擊下載csv圖式")
+    time.sleep(1)
+
+    #  下載完成後要登出
+    driver.switch_to.frame("fleft")
+    driver.find_element(By.XPATH, '/html/body/table/tbody/tr[1]/td/table/tbody/tr/td/table/tbody/tr/td[3]/table/tbody/tr[2]/td/a/img').click()
+    print("完成登出")
+    driver.switch_to.default_content()
+    time.sleep(3)
+
+    #  登出後關閉視窗
+    driver.close()
+    print("關閉視窗")
