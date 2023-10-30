@@ -1,0 +1,36 @@
+import os
+from urllib.request import urlretrieve
+from datetime import datetime
+
+dn = r"C:\Users\謝瑋益\Desktop\家計\03 投資對帳單\08 雅虎財經_指數歷史資訊"  # 自行更新儲存位置
+if not os.path.exists(dn):
+    os.makedirs(dn)
+
+stocks = ["^DJI",
+          "^GSPC",
+          "^IXIC",
+          "^SOX",
+          "^TWII"
+          ]
+start_date = datetime(2022, 12, 1, 0, 0, 0,)
+start_date_ts = round(start_date.timestamp())
+print(start_date, start_date_ts)
+end_date = datetime(datetime.now().year,
+                    datetime.now().month,
+                    datetime.now().day + 1,
+                    0, 0, 0)
+end_date_ts = round(end_date.timestamp())
+print(end_date, end_date_ts)
+
+for stock in stocks:
+    url = "https://query1.finance.yahoo.com/v7/finance/download/" \
+          + stock \
+          + "?period1=" \
+          + str(start_date_ts) \
+          + "&period2=" \
+          + str(end_date_ts) \
+          + "&interval=1d&filter=history&frequency=1d&includeAdjustedClose=true"
+    print(stock)
+    print(url)
+    fp = dn + "/" + stock + ".csv"
+    response = urlretrieve(url, fp)
